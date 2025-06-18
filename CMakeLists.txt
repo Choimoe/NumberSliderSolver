@@ -19,7 +19,8 @@ set(SPDLOG_BUILD_SHARED_LIBS OFF CACHE BOOL "Build spdlog as shared library" FOR
 message(STATUS "Adding spdlog as subdirectory from third_party/spdlog. Tests disabled, building static.")
 add_subdirectory(third_party/spdlog)
 
-set(TBB_BUILD_TESTS OFF CACHE BOOL "Disable building oneTBB tests" FORCE)
+set(BUILD_TESTING OFF CACHE BOOL "Disable building tests for all subdirectories" FORCE)
+set(TBB_TEST OFF CACHE BOOL "Disable building oneTBB tests" FORCE)
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build TBB as shared library" FORCE)
 message(STATUS "Adding oneTBB as subdirectory from third_party/oneTBB. Tests disabled, building static.")
 add_subdirectory(third_party/oneTBB)

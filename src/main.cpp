@@ -28,8 +28,10 @@ int main(int argc, char* argv[]) {
     spdlog::set_level(spdlog::level::info); // 设置全局日志级别为信息级
     spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v"); // 不显示线程ID
 
-    // 检查命令行参数，获取输入文件名
+    // 检查命令行参数，获取输入文件名和可选的时间限制
     std::string input_filename;
+    int time_limit_seconds = 0; // 默认为0，表示无时间限制
+
     if (argc > 1) {
         input_filename = argv[1];
         spdlog::info("Reading puzzle from file: {}", input_filename);
@@ -37,6 +39,23 @@ int main(int argc, char* argv[]) {
         input_filename = "puzzle_input.txt"; // 默认文件名
         spdlog::warn("No input file specified. Using default: {}", input_filename);
     }
+
+    if (argc > 2) {
+        try {
+            time_limit_seconds = std::stoi(argv[2]);
+            if (time_limit_seconds < 0) {
+                time_limit_seconds = 0; // 负数时间限制视为无限制
+                spdlog::warn("Invalid time limit specified (negative). Setting to no limit.");
+            }
+        } catch (const std::invalid_argument& e) {
+            spdlog::error("Invalid time limit argument: {}. Must be an integer. Setting to no limit.", argv[2]);
+            time_limit_seconds = 0;
+        } catch (const std::out_of_range& e) {
+            spdlog::error("Time limit argument out of range: {}. Setting to no limit.", argv[2]);
+            time_limit_seconds = 0;
+        }
+    }
+
 
     std::ifstream input_file(input_filename);
     if (!input_file.is_open()) {
@@ -80,8 +99,8 @@ int main(int argc, char* argv[]) {
 
     PuzzleSolver solver_adj;
     auto start_time_adj = std::chrono::high_resolution_clock::now();
-    // 查找前 5 个最优解
-    std::vector<Solution> solutions_adj = solver_adj.solve(initial_board_adj, SolveType::AdjacentSwap, 5, num_threads);
+    // 查找前 1 个最优解，并传入时间限制
+    std::vector<Solution> solutions_adj = solver_adj.solve(initial_board_adj, SolveType::AdjacentSwap, 1, num_threads, time_limit_seconds);
     auto end_time_adj = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff_adj = end_time_adj - start_time_adj;
 
@@ -112,8 +131,8 @@ int main(int argc, char* argv[]) {
 
     PuzzleSolver solver_block;
     auto start_time_block = std::chrono::high_resolution_clock::now();
-    // 查找前 5 个最优解
-    std::vector<Solution> solutions_block = solver_block.solve(initial_board_block, SolveType::BlockShift, 5, num_threads);
+    // 查找前 1 个最优解，并传入时间限制
+    std::vector<Solution> solutions_block = solver_block.solve(initial_board_block, SolveType::BlockShift, 1, num_threads, time_limit_seconds);
     auto end_time_block = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> diff_block = end_time_block - start_time_block;
 

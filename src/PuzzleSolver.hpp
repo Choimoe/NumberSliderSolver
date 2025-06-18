@@ -30,25 +30,13 @@ struct State {
     int g_cost;           // 从起始状态到当前状态的实际代价（已走步数）
     int h_cost;           // 从当前状态到目标状态的启发式估计代价（曼哈顿距离）
     int f_cost;           // g_cost + h_cost (总估计代价)
-    std::vector<Board> path; // 到达当前状态的路径（用于重构解）
 
+    // 默认构造函数，TBB 并发容器可能需要
     State() : board(0, 0, {}), g_cost(0), h_cost(0), f_cost(0) {}
 
     // 构造函数
-    State(Board b, int g, int h, const std::vector<Board>& p) :
-        board(b), g_cost(g), h_cost(h), f_cost(g + h), path(p) {}
-
-    // 用于 std::priority_queue 的比较操作符 (用于 std::greater)
-    // std::greater 使 priority_queue 成为最小堆，即 f_cost 最小的元素优先级最高
-    bool operator>(const State& other) const {
-        if (f_cost != other.f_cost) {
-            return f_cost > other.f_cost; // 优先比较 f_cost
-        }
-        return g_cost > other.g_cost;     // f_cost 相同时，优先选择 g_cost 较小的（即离起始点更近的）
-    }
-
-    // 注意：这里的 operator< 已被移除，因为我们将使用自定义的 CompareStateForTBB
-    // 来处理 tbb::concurrent_priority_queue 的比较逻辑。
+    State(Board b, int g, int h) :
+        board(b), g_cost(g), h_cost(h), f_cost(g + h) {}
 };
 
 // 自定义比较器，用于 tbb::concurrent_priority_queue，使其作为最小堆工作。
@@ -57,9 +45,9 @@ struct State {
 struct CompareStateForTBB {
     bool operator()(const State& a, const State& b) const {
         if (a.f_cost != b.f_cost) {
-            return a.f_cost < b.f_cost; // a 的 f_cost 更小，表示 a 优先级更高
+            return a.f_cost > b.f_cost; // a 的 f_cost 更小，表示 a 优先级更高 (TBB is max heap, so use > for min-heap behavior)
         }
-        return a.g_cost < b.g_cost;     // f_cost 相同，a 的 g_cost 更小，表示 a 优先级更高
+        return a.g_cost > b.g_cost;     // f_cost 相同，a 的 g_cost 更小，表示 a 优先级更高
     }
 };
 
@@ -87,29 +75,37 @@ public:
     // type: 求解类型 (相邻交换或批量位移)
     // num_solutions_to_find: 希望找到的最优解数量
     // num_threads: 线程数量
-    std::vector<Solution> solve(const Board& initial_board, SolveType type, int num_solutions_to_find, int num_threads);
+    // time_limit_seconds: 求解的时间限制（秒），0 表示无限制
+    std::vector<Solution> solve(const Board& initial_board, SolveType type, int num_solutions_to_find, int num_threads, int time_limit_seconds);
 
 private:
-    // 日志器
-    std::shared_ptr<spdlog::logger> console_logger;
+    // 日志器已移除，PuzzleSolver 将直接使用 spdlog::default_logger()
+    // std::shared_ptr<spdlog::logger> console_logger;
 
     // A* 算法所需的数据结构，现为并发版本
     // 使用自定义比较器 CompareStateForTBB
     tbb::concurrent_priority_queue<State, CompareStateForTBB> open_set;
     tbb::concurrent_unordered_map<Board, int> g_costs; // 存储到达某个棋盘状态的最小 g_cost
+    tbb::concurrent_unordered_map<Board, Board> came_from; // 用于路径重建：came_from[child_board] = parent_board
 
     // 存储找到的解决方案
     std::set<Solution> found_solutions;
     std::mutex solutions_mutex; // 保护 found_solutions
 
     // 终止标志
-    std::atomic<bool> terminate_search; // 修正了拼写错误
+    std::atomic<bool> terminate_search;
 
     // 记录探索过的状态数量
     std::atomic<long long> states_explored;
 
     // 用于并行处理 A* 搜索的单个工作线程函数
-    void worker_thread_func(SolveType type, int num_solutions_to_find);
+    // initial_board 现在通过 lambda 捕获并传递给 reconstruct_path
+    void worker_thread_func(SolveType type, int num_solutions_to_find, const Board& initial_board_for_reconstruction,
+                            std::chrono::high_resolution_clock::time_point start_time, int time_limit_seconds);
+
+    // 辅助函数：从 came_from 映射重建路径
+    // 现在接收 initial_board 作为参数
+    std::vector<Board> reconstruct_path(const Board& current_board, const Board& initial_board);
 };
 
 #endif // PUZZLE_SOLVER_HPP

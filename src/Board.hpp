@@ -29,6 +29,7 @@ struct Board {
     }
 
     // 拷贝构造函数和赋值运算符（默认即可，std::vector 会正确处理深拷贝）
+    Board() = default;
     Board(const Board& other) = default;
     Board& operator=(const Board& other) = default;
 
